@@ -17,11 +17,10 @@
     <dependencies>
         <!-- XGBoost4J - Main Java API (with Scala binary version suffix) -->
         <dependency>
-            <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j_2.12</artifactId>
-            <version>1.5.2</version>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>weka-stable</artifactId>
+            <version>3.8.6</version>
         </dependency>
-
         <!-- Apache Commons CSV for data loading -->
         <dependency>
             <groupId>org.apache.commons</groupId>

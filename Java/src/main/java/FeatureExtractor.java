@@ -29,8 +29,17 @@ public class FeatureExtractor {
      * Extract features for a player pair (treating player1 as potential winner)
      */
     public FeatureVector extractFeatures(Match match, boolean player1IsWinner) {
+        if (match == null) {
+            throw new IllegalArgumentException("Match cannot be null");
+        }
+
         Player player1 = player1IsWinner ? match.getWinner() : match.getLoser();
         Player player2 = player1IsWinner ? match.getLoser() : match.getWinner();
+
+        if (player1 == null || player2 == null) {
+            throw new IllegalArgumentException("Match must have both winner and loser");
+        }
+
         MatchStats stats1 = player1IsWinner ? match.getWinnerStats() : match.getLoserStats();
         MatchStats stats2 = player1IsWinner ? match.getLoserStats() : match.getWinnerStats();
 

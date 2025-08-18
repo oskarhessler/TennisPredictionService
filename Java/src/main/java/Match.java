@@ -17,9 +17,14 @@ public class Match {
     private final MatchStats loserStats;
 
     private Match(Builder builder) {
+        // Add validation for required fields
+        if (builder.winner == null || builder.loser == null) {
+            throw new IllegalArgumentException("Winner and loser are required");
+        }
+
         this.tourneyId = builder.tourneyId;
+        this.surface = builder.surface != null ? builder.surface : "Hard";
         this.tourneyName = builder.tourneyName;
-        this.surface = builder.surface;
         this.drawSize = builder.drawSize;
         this.tourneyLevel = builder.tourneyLevel;
         this.tourneyDate = builder.tourneyDate;
