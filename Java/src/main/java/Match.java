@@ -16,7 +16,7 @@ public class Match {
     private final MatchStats winnerStats;
     private final MatchStats loserStats;
 
-    public Match(Builder builder) {
+    private Match(Builder builder) {
         this.tourneyId = builder.tourneyId;
         this.tourneyName = builder.tourneyName;
         this.surface = builder.surface;
@@ -34,64 +34,57 @@ public class Match {
         this.loserStats = builder.loserStats;
     }
 
-    // Getters
-    public String getTourneyId() {
-        return tourneyId;
-    }
+    // All your existing getters remain the same...
+    public String getTourneyId() { return tourneyId; }
+    public String getTourneyName() { return tourneyName; }
+    public String getSurface() { return surface; }
+    public Integer getDrawSize() { return drawSize; }
+    public String getTourneyLevel() { return tourneyLevel; }
+    public Integer getTourneyDate() { return tourneyDate; }
+    public Integer getMatchNum() { return matchNum; }
+    public String getRound() { return round; }
+    public Integer getBestOf() { return bestOf; }
+    public Integer getMinutes() { return minutes; }
+    public String getScore() { return score; }
+    public Player getWinner() { return winner; }
+    public Player getLoser() { return loser; }
+    public MatchStats getWinnerStats() { return winnerStats; }
+    public MatchStats getLoserStats() { return loserStats; }
 
-    public String getTourneyName() {
-        return tourneyName;
-    }
+    // NESTED BUILDER CLASS - Move content from Builder.java here
+    public static class Builder {
+        String tourneyId;
+        String tourneyName;
+        String surface;
+        String tourneyLevel;
+        String round;
+        String score;
+        Integer drawSize;
+        Integer tourneyDate;
+        Integer matchNum;
+        Integer bestOf;
+        Integer minutes;
+        Player winner;
+        Player loser;
+        MatchStats winnerStats;
+        MatchStats loserStats;
 
-    public String getSurface() {
-        return surface;
-    }
+        public Builder tourneyId(String val) { tourneyId = val; return this; }
+        public Builder tourneyName(String val) { tourneyName = val; return this; }
+        public Builder surface(String val) { surface = val; return this; }
+        public Builder drawSize(Integer val) { drawSize = val; return this; }
+        public Builder tourneyLevel(String val) { tourneyLevel = val; return this; }
+        public Builder tourneyDate(Integer val) { tourneyDate = val; return this; }
+        public Builder matchNum(Integer val) { matchNum = val; return this; }
+        public Builder round(String val) { round = val; return this; }
+        public Builder bestOf(Integer val) { bestOf = val; return this; }
+        public Builder minutes(Integer val) { minutes = val; return this; }
+        public Builder score(String val) { score = val; return this; }
+        public Builder winner(Player val) { winner = val; return this; }
+        public Builder loser(Player val) { loser = val; return this; }
+        public Builder winnerStats(MatchStats val) { winnerStats = val; return this; }
+        public Builder loserStats(MatchStats val) { loserStats = val; return this; }
 
-    public Integer getDrawSize() {
-        return drawSize;
-    }
-
-    public String getTourneyLevel() {
-        return tourneyLevel;
-    }
-
-    public Integer getTourneyDate() {
-        return tourneyDate;
-    }
-
-    public Integer getMatchNum() {
-        return matchNum;
-    }
-
-    public String getRound() {
-        return round;
-    }
-
-    public Integer getBestOf() {
-        return bestOf;
-    }
-
-    public Integer getMinutes() {
-        return minutes;
-    }
-
-    public String getScore() {
-        return score;
-    }
-
-    public Player getWinner() {
-        return winner;
-    }
-
-    public Player getLoser() {
-        return loser;
-    }
-
-    public MatchStats getWinnerStats() {
-        return winnerStats;
-    }
-
-    public MatchStats getLoserStats() {
-        return loserStats;
+        public Match build() { return new Match(this); }
     }
 }

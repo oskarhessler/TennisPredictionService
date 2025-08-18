@@ -77,7 +77,7 @@ public class TennisModelTrainer {
 
     private Map<String, Integer> getFeatureImportance(Booster model) {
         try {
-            return model.getFeatureScore(null);
+            return model.getFeatureScore((String[]) null);
         } catch (XGBoostError e) {
             System.err.println("Could not get feature importance: " + e.getMessage());
             return new HashMap<>();

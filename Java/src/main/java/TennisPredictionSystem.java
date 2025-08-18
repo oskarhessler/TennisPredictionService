@@ -2,7 +2,9 @@ import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import ml.dmlc.xgboost4j.java.Booster;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.*;
 
 /**
@@ -13,18 +15,29 @@ public class TennisPredictionSystem {
     public static void main(String[] args) throws IOException, XGBoostError {
         System.out.println("Starting Tennis Prediction System...");
 
-        // 1. Load training data
+// 1. Load training data
         TennisDataLoader loader = new TennisDataLoader();
         List<Match> allMatches = new ArrayList<>();
 
-        // Load multiple years of data
-        String[] dataFiles = {"Data/2020.csv", "Data/2021.csv", "Data/2022.csv", "Data/2023.csv", "Data/2024.csv"};
-        for (String file : dataFiles) {
-            List<Match> yearMatches = loader.loadMatches(file);
+// Load multiple years of data from resources
+        String[] dataFiles = {"merged2005_2024.csv"};
+        for (String fileName : dataFiles) {
+            // Hitta filen i resources
+            URL resource = TennisDataLoader.class.getClassLoader().getResource(fileName);
+            if (resource == null) {
+                System.out.println("Filen hittades inte i resources: " + fileName);
+                continue;
+            }
+
+            // Konvertera URL till filväg som String
+            String filePath = new File(resource.getFile()).getAbsolutePath();
+
+            // Ladda matcher med String
+            List<Match> yearMatches = loader.loadMatches(filePath);
             allMatches.addAll(yearMatches);
         }
 
-        // Sort chronologically
+// Sort chronologically
         allMatches.sort((a, b) -> {
             Integer dateA = a.getTourneyDate() != null ? a.getTourneyDate() : 0;
             Integer dateB = b.getTourneyDate() != null ? b.getTourneyDate() : 0;
@@ -32,6 +45,7 @@ public class TennisPredictionSystem {
         });
 
         System.out.printf("Loaded %d matches\n", allMatches.size());
+
 
         // 2. Split data chronologically
         int trainSplit = (int) (allMatches.size() * 0.8);
@@ -51,7 +65,9 @@ public class TennisPredictionSystem {
         }
 
         DMatrix trainData = dataPreparer.prepareDMatrix(trainMatches);
-        System.out.printf("Prepared training matrix: %d rows, %d features\n", trainData.rowNum(), (int)trainData.featureNum());
+        // FIXED: Use getColNum() instead of featureNum()
+        System.out.printf("Prepared training matrix: %d rows\n",
+                trainData.rowNum());
 
         // 4. Train model
         TennisModelTrainer trainer = new TennisModelTrainer();

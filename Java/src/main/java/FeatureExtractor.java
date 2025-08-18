@@ -89,16 +89,35 @@ public class FeatureExtractor {
     }
 
     private void addPlayerFeatures(List<Double> features, List<String> names, Player player, String prefix, String surface) {
+        // Säkerställ att player-objektet inte är null
+        if (player == null) {
+            System.out.println("Warning: player is null for prefix " + prefix);
+            return;
+        }
+
+        // Seed, entry, hand, height, age, rank, rank_points
         addFeature(features, names, prefix + "seed", safeDouble(player.getSeed()));
         addFeature(features, names, prefix + "entry", encodeEntry(player.getEntry()));
-        addFeature(features, names, prefix + "hand", encodeHand(player.getHand()));
+
+        // Hand: fallback till högerhand om null
+        String hand = player.getHand();
+        if (hand == null || hand.isEmpty()) {
+            hand = "R";
+        }
+        addFeature(features, names, prefix + "hand", encodeHand(hand));
+
         addFeature(features, names, prefix + "height", safeDouble(player.getHeight()));
         addFeature(features, names, prefix + "age", player.getAge());
         addFeature(features, names, prefix + "rank", safeDouble(player.getRank()));
         addFeature(features, names, prefix + "rank_points", safeDouble(player.getRankPoints()));
 
         // Historical performance features
-        PlayerHistory history = historyManager.getPlayerHistory(player.getPlayerId());
+        String playerId = player.getPlayerId();
+        PlayerHistory history = null;
+        if (playerId != null) {
+            history = historyManager.getPlayerHistory(playerId);
+        }
+
         if (history != null) {
             addFeature(features, names, prefix + "recent_form_5", history.getRecentForm(5));
             addFeature(features, names, prefix + "recent_form_10", history.getRecentForm(10));
@@ -108,7 +127,7 @@ public class FeatureExtractor {
             addFeature(features, names, prefix + "career_win_rate",
                     history.getTotalMatches() > 0 ? (double) history.getTotalWins() / history.getTotalMatches() : 0.5);
         } else {
-            // Default values for new players
+            // Default values for new players or missing history
             addFeature(features, names, prefix + "recent_form_5", 0.5);
             addFeature(features, names, prefix + "recent_form_10", 0.5);
             addFeature(features, names, prefix + "surface_form_10", 0.5);
@@ -117,6 +136,7 @@ public class FeatureExtractor {
             addFeature(features, names, prefix + "career_win_rate", 0.5);
         }
     }
+
 
     private void addHeadToHeadFeatures(List<Double> features, List<String> names, String player1Id, String player2Id) {
         HeadToHeadRecord h2h = historyManager.getHeadToHeadRecord(player1Id, player2Id);
@@ -173,23 +193,33 @@ public class FeatureExtractor {
 
     // Encoding helper methods
     private Double encodeSurface(String surface) {
-        Integer encoded = surfaceEncoding.get(surface);
-        return encoded != null ? encoded.doubleValue() : null;
+        if (surface == null || surface.isEmpty()) {
+            surface = "Hard"; // fallback till standardyta
+        }
+        Integer encoded = surfaceEncoding.getOrDefault(surface, 0); // 0 = Hard
+        return encoded.doubleValue();
     }
 
+    //Changed from original, assuming R hand if data not existing
     private Double encodeHand(String hand) {
-        Integer encoded = handEncoding.get(hand);
-        return encoded != null ? encoded.doubleValue() : null;
+        Integer encoded = handEncoding.getOrDefault(hand, 0); // 0 = R
+        return encoded.doubleValue();
     }
 
     private Double encodeTourneyLevel(String level) {
-        Integer encoded = tourneyLevelEncoding.get(level);
-        return encoded != null ? encoded.doubleValue() : null;
+        if (level == null || level.isEmpty()) {
+            level = "G"; // fallback till standardnivå (Grand Slam)
+        }
+        Integer encoded = tourneyLevelEncoding.getOrDefault(level, 0); // 0 = G
+        return encoded.doubleValue();
     }
 
     private Double encodeRound(String round) {
-        Integer encoded = roundEncoding.get(round);
-        return encoded != null ? encoded.doubleValue() : null;
+        if (round == null || round.isEmpty()) {
+            round = "R128"; // fallback till första rundan
+        }
+        Integer encoded = roundEncoding.getOrDefault(round, 0); // 0 = R128
+        return encoded.doubleValue();
     }
 
     private Double encodeEntry(String entry) {

@@ -1,5 +1,5 @@
 import ml.dmlc.xgboost4j.java.XGBoostError;
-import ml.dmlc.xgboost4j.scala.Booster;
+import ml.dmlc.xgboost4j.java.Booster; // FIXED: Use Java version, not Scala
 
 import java.util.Map;
 

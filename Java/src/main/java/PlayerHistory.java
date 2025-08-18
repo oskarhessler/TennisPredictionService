@@ -43,8 +43,12 @@ public class PlayerHistory {
     }
 
     public double getSurfaceForm(String surface, int lastNMatches) {
+        if (surface == null) {
+            surface = "Hard"; // fallback om surface saknas
+        }
+        String finalSurface = surface;
         List<MatchResult> surfaceMatches = matchHistory.stream()
-                .filter(m -> surface.equals(m.surface))
+                .filter(m -> finalSurface.equals(m.surface))
                 .collect(ArrayList::new, (list, item) -> list.add(item), ArrayList::addAll);
 
         if (surfaceMatches.isEmpty()) return 0.5;
