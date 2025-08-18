@@ -2,12 +2,8 @@ import weka.classifiers.trees.RandomForest;
 import weka.classifiers.evaluation.Evaluation;
 import weka.core.*;
 import weka.core.converters.ConverterUtils.DataSource;
-
 import java.util.*;
 
-/**
- * Weka-based tennis prediction trainer (replacement for XGBoost)
- */
 public class WekaTennisTrainer {
     private final RandomForest classifier;
     private Instances header;
@@ -69,13 +65,18 @@ public class WekaTennisTrainer {
 
         // Add instances (both winner and loser perspectives)
         for (Match match : matches) {
-            // Winner perspective (positive example)
-            FeatureVector winnerFeatures = featureExtractor.extractFeatures(match, true);
-            addInstance(dataset, winnerFeatures, 1.0);
+            try {
+                // Winner perspective (positive example)
+                FeatureVector winnerFeatures = featureExtractor.extractFeatures(match, true);
+                addInstance(dataset, winnerFeatures, 1.0);
 
-            // Loser perspective (negative example)
-            FeatureVector loserFeatures = featureExtractor.extractFeatures(match, false);
-            addInstance(dataset, loserFeatures, 0.0);
+                // Loser perspective (negative example)
+                FeatureVector loserFeatures = featureExtractor.extractFeatures(match, false);
+                addInstance(dataset, loserFeatures, 0.0);
+            } catch (Exception e) {
+                System.err.println("Error processing match: " + e.getMessage());
+                // Continue with other matches
+            }
         }
 
         return dataset;
@@ -85,10 +86,10 @@ public class WekaTennisTrainer {
         double[] values = new double[dataset.numAttributes()];
         List<Double> featureValues = features.getFeatures();
 
-        // Copy feature values (handle NaN)
-        for (int i = 0; i < featureValues.size(); i++) {
+        // Copy feature values (handle NaN and null)
+        for (int i = 0; i < featureValues.size() && i < values.length - 1; i++) {
             Double val = featureValues.get(i);
-            values[i] = (val != null && !val.isNaN()) ? val : 0.0; // Simple imputation
+            values[i] = (val != null && !val.isNaN() && !val.isInfinite()) ? val : 0.0;
         }
 
         // Set class value
@@ -104,58 +105,35 @@ public class WekaTennisTrainer {
                 throw new IllegalStateException("Model not trained yet!");
             }
 
-            // Skapa värden i samma ordning som i trainingData/header
+            // Create values in same order as training data
             double[] values = new double[header.numAttributes()];
             List<Double> featureValues = features.getFeatures();
 
-            for (int i = 0; i < featureValues.size(); i++) {
+            for (int i = 0; i < featureValues.size() && i < values.length - 1; i++) {
                 Double val = featureValues.get(i);
-                values[i] = (val != null && !val.isNaN()) ? val : 0.0;
+                values[i] = (val != null && !val.isNaN() && !val.isInfinite()) ? val : 0.0;
             }
 
-            // Klassattributet okänt vid prediction
+            // Class attribute unknown during prediction
             values[values.length - 1] = Utils.missingValue();
 
             Instance instance = new DenseInstance(1.0, values);
-            instance.setDataset(header); // ← Kopplar instansen till rätt dataset-header
+            instance.setDataset(header);
 
             double[] probabilities = classifier.distributionForInstance(instance);
-            return probabilities[1]; // sannolikhet för class "1" (player1 win)
+            return probabilities[1]; // probability for class "1" (player1 win)
 
         } catch (Exception e) {
             System.err.println("Prediction failed: " + e.getMessage());
-            return 0.5; // default om det failar
+            return 0.5; // default if prediction fails
         }
     }
 
-
-    class WekaTrainingResult {
-    private final RandomForest model;
-    private final Evaluation evaluation;
-
-    public WekaTrainingResult(RandomForest model, Evaluation evaluation) {
-        this.model = model;
-        this.evaluation = evaluation;
+    public RandomForest getClassifier() {
+        return classifier;
     }
 
-    public RandomForest getModel() { return model; }
-    public Evaluation getEvaluation() { return evaluation; }
-
-    public double getAccuracy() {
-        try {
-            return evaluation.pctCorrect() / 100.0;
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    @Override
-    public String toString() {
-        try {
-            return String.format("Accuracy: %.3f (%.1f%%)",
-                    getAccuracy(), evaluation.pctCorrect());
-        } catch (Exception e) {
-            return "Evaluation unavailable";
-        }
+    public Instances getHeader() {
+        return header;
     }
 }

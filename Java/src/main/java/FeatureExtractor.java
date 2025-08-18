@@ -1,8 +1,5 @@
 import java.util.*;
 
-/**
- * Converts matches into numerical feature vectors for machine learning
- */
 public class FeatureExtractor {
     private final PlayerHistoryManager historyManager;
     private final Map<String, Integer> surfaceEncoding = Map.of(
@@ -25,9 +22,6 @@ public class FeatureExtractor {
         this.historyManager = historyManager;
     }
 
-    /**
-     * Extract features for a player pair (treating player1 as potential winner)
-     */
     public FeatureVector extractFeatures(Match match, boolean player1IsWinner) {
         if (match == null) {
             throw new IllegalArgumentException("Match cannot be null");
@@ -53,17 +47,22 @@ public class FeatureExtractor {
         addFeature(features, featureNames, "best_of", safeDouble(match.getBestOf()));
         addFeature(features, featureNames, "round", encodeRound(match.getRound()));
 
-        // Date features (convert YYYYMMDD to more useful features)
+        // Date features
         addDateFeatures(features, featureNames, match.getTourneyDate());
 
-        // Player 1 features
+        // Player features
         addPlayerFeatures(features, featureNames, player1, "p1_", match.getSurface());
-
-        // Player 2 features
         addPlayerFeatures(features, featureNames, player2, "p2_", match.getSurface());
 
         // Head-to-head features
-        addHeadToHeadFeatures(features, featureNames, player1.getPlayerId(), player2.getPlayerId());
+        String p1Id = player1.getPlayerId();
+        String p2Id = player2.getPlayerId();
+        if (p1Id != null && p2Id != null) {
+            addHeadToHeadFeatures(features, featureNames, p1Id, p2Id);
+        } else {
+            addFeature(features, featureNames, "h2h_win_rate", 0.5);
+            addFeature(features, featureNames, "h2h_total_matches", 0.0);
+        }
 
         // Match statistics (if available)
         if (stats1 != null && stats2 != null) {
@@ -77,7 +76,11 @@ public class FeatureExtractor {
     }
 
     private void addFeature(List<Double> features, List<String> names, String name, Double value) {
-        features.add(value != null ? value : Double.NaN);
+        Double safeValue = value;
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            safeValue = 0.0; // Default value for missing data
+        }
+        features.add(safeValue);
         names.add(name);
     }
 
@@ -91,39 +94,48 @@ public class FeatureExtractor {
             addFeature(features, names, "month", (double) month);
             addFeature(features, names, "day_of_month", (double) day);
         } else {
-            addFeature(features, names, "year", null);
-            addFeature(features, names, "month", null);
-            addFeature(features, names, "day_of_month", null);
+            addFeature(features, names, "year", 2020.0); // Default year
+            addFeature(features, names, "month", 6.0);   // Default month
+            addFeature(features, names, "day_of_month", 15.0); // Default day
         }
     }
 
     private void addPlayerFeatures(List<Double> features, List<String> names, Player player, String prefix, String surface) {
-        // Säkerställ att player-objektet inte är null
         if (player == null) {
-            System.out.println("Warning: player is null for prefix " + prefix);
+            // Add default values for all player features
+            addFeature(features, names, prefix + "seed", 0.0);
+            addFeature(features, names, prefix + "entry", 4.0);
+            addFeature(features, names, prefix + "hand", 0.0);
+            addFeature(features, names, prefix + "height", 180.0);
+            addFeature(features, names, prefix + "age", 25.0);
+            addFeature(features, names, prefix + "rank", 100.0);
+            addFeature(features, names, prefix + "rank_points", 1000.0);
+            addFeature(features, names, prefix + "recent_form_5", 0.5);
+            addFeature(features, names, prefix + "recent_form_10", 0.5);
+            addFeature(features, names, prefix + "surface_form_10", 0.5);
+            addFeature(features, names, prefix + "surface_elo", 1500.0);
+            addFeature(features, names, prefix + "total_matches", 0.0);
+            addFeature(features, names, prefix + "career_win_rate", 0.5);
             return;
         }
 
-        // Seed, entry, hand, height, age, rank, rank_points
-        addFeature(features, names, prefix + "seed", safeDouble(player.getSeed()));
+        // Basic player attributes
+        addFeature(features, names, prefix + "seed", player.getSeed() != null ? player.getSeed().doubleValue() : 0.0);
         addFeature(features, names, prefix + "entry", encodeEntry(player.getEntry()));
 
-        // Hand: fallback till högerhand om null
         String hand = player.getHand();
-        if (hand == null || hand.isEmpty()) {
-            hand = "R";
-        }
+        if (hand == null || hand.isEmpty()) hand = "R";
         addFeature(features, names, prefix + "hand", encodeHand(hand));
 
-        addFeature(features, names, prefix + "height", safeDouble(player.getHeight()));
-        addFeature(features, names, prefix + "age", player.getAge());
-        addFeature(features, names, prefix + "rank", safeDouble(player.getRank()));
-        addFeature(features, names, prefix + "rank_points", safeDouble(player.getRankPoints()));
+        addFeature(features, names, prefix + "height", player.getHeight() != null ? player.getHeight().doubleValue() : 180.0);
+        addFeature(features, names, prefix + "age", player.getAge() != null ? player.getAge() : 25.0);
+        addFeature(features, names, prefix + "rank", player.getRank() != null ? player.getRank().doubleValue() : 100.0);
+        addFeature(features, names, prefix + "rank_points", player.getRankPoints() != null ? player.getRankPoints().doubleValue() : 1000.0);
 
         // Historical performance features
         String playerId = player.getPlayerId();
         PlayerHistory history = null;
-        if (playerId != null) {
+        if (playerId != null && historyManager != null) {
             history = historyManager.getPlayerHistory(playerId);
         }
 
@@ -133,8 +145,8 @@ public class FeatureExtractor {
             addFeature(features, names, prefix + "surface_form_10", history.getSurfaceForm(surface, 10));
             addFeature(features, names, prefix + "surface_elo", history.getSurfaceElo(surface));
             addFeature(features, names, prefix + "total_matches", (double) history.getTotalMatches());
-            addFeature(features, names, prefix + "career_win_rate",
-                    history.getTotalMatches() > 0 ? (double) history.getTotalWins() / history.getTotalMatches() : 0.5);
+            double winRate = history.getTotalMatches() > 0 ? (double) history.getTotalWins() / history.getTotalMatches() : 0.5;
+            addFeature(features, names, prefix + "career_win_rate", winRate);
         } else {
             // Default values for new players or missing history
             addFeature(features, names, prefix + "recent_form_5", 0.5);
@@ -146,9 +158,12 @@ public class FeatureExtractor {
         }
     }
 
-
     private void addHeadToHeadFeatures(List<Double> features, List<String> names, String player1Id, String player2Id) {
-        HeadToHeadRecord h2h = historyManager.getHeadToHeadRecord(player1Id, player2Id);
+        HeadToHeadRecord h2h = null;
+        if (historyManager != null) {
+            h2h = historyManager.getHeadToHeadRecord(player1Id, player2Id);
+        }
+
         if (h2h != null && h2h.getTotalMatches() > 0) {
             addFeature(features, names, "h2h_win_rate", h2h.getWinRate());
             addFeature(features, names, "h2h_total_matches", (double) h2h.getTotalMatches());
@@ -160,83 +175,68 @@ public class FeatureExtractor {
 
     private void addMatchStatsFeatures(List<Double> features, List<String> names, MatchStats stats1, MatchStats stats2) {
         // Player 1 serving stats
-        addFeature(features, names, "p1_aces", safeDouble(stats1.getAces()));
-        addFeature(features, names, "p1_double_faults", safeDouble(stats1.getDoubleFaults()));
-        addFeature(features, names, "p1_first_serve_pct", stats1.getFirstServePercentage());
-        addFeature(features, names, "p1_first_serve_win_pct", stats1.getFirstServeWinPercentage());
-        addFeature(features, names, "p1_second_serve_win_pct", stats1.getSecondServeWinPercentage());
-        addFeature(features, names, "p1_ace_rate", stats1.getAceRate());
-        addFeature(features, names, "p1_df_rate", stats1.getDoubleFaultRate());
-        addFeature(features, names, "p1_bp_save_pct", stats1.getBreakPointSavePercentage());
+        addFeature(features, names, "p1_aces", stats1.getAces() != null ? stats1.getAces().doubleValue() : 0.0);
+        addFeature(features, names, "p1_double_faults", stats1.getDoubleFaults() != null ? stats1.getDoubleFaults().doubleValue() : 0.0);
+        addFeature(features, names, "p1_first_serve_pct", stats1.getFirstServePercentage() != null ? stats1.getFirstServePercentage() : 0.6);
+        addFeature(features, names, "p1_first_serve_win_pct", stats1.getFirstServeWinPercentage() != null ? stats1.getFirstServeWinPercentage() : 0.7);
+        addFeature(features, names, "p1_second_serve_win_pct", stats1.getSecondServeWinPercentage() != null ? stats1.getSecondServeWinPercentage() : 0.5);
+        addFeature(features, names, "p1_ace_rate", stats1.getAceRate() != null ? stats1.getAceRate() : 0.05);
+        addFeature(features, names, "p1_df_rate", stats1.getDoubleFaultRate() != null ? stats1.getDoubleFaultRate() : 0.03);
+        addFeature(features, names, "p1_bp_save_pct", stats1.getBreakPointSavePercentage() != null ? stats1.getBreakPointSavePercentage() : 0.6);
 
         // Player 2 serving stats
-        addFeature(features, names, "p2_aces", safeDouble(stats2.getAces()));
-        addFeature(features, names, "p2_double_faults", safeDouble(stats2.getDoubleFaults()));
-        addFeature(features, names, "p2_first_serve_pct", stats2.getFirstServePercentage());
-        addFeature(features, names, "p2_first_serve_win_pct", stats2.getFirstServeWinPercentage());
-        addFeature(features, names, "p2_second_serve_win_pct", stats2.getSecondServeWinPercentage());
-        addFeature(features, names, "p2_ace_rate", stats2.getAceRate());
-        addFeature(features, names, "p2_df_rate", stats2.getDoubleFaultRate());
-        addFeature(features, names, "p2_bp_save_pct", stats2.getBreakPointSavePercentage());
+        addFeature(features, names, "p2_aces", stats2.getAces() != null ? stats2.getAces().doubleValue() : 0.0);
+        addFeature(features, names, "p2_double_faults", stats2.getDoubleFaults() != null ? stats2.getDoubleFaults().doubleValue() : 0.0);
+        addFeature(features, names, "p2_first_serve_pct", stats2.getFirstServePercentage() != null ? stats2.getFirstServePercentage() : 0.6);
+        addFeature(features, names, "p2_first_serve_win_pct", stats2.getFirstServeWinPercentage() != null ? stats2.getFirstServeWinPercentage() : 0.7);
+        addFeature(features, names, "p2_second_serve_win_pct", stats2.getSecondServeWinPercentage() != null ? stats2.getSecondServeWinPercentage() : 0.5);
+        addFeature(features, names, "p2_ace_rate", stats2.getAceRate() != null ? stats2.getAceRate() : 0.05);
+        addFeature(features, names, "p2_df_rate", stats2.getDoubleFaultRate() != null ? stats2.getDoubleFaultRate() : 0.03);
+        addFeature(features, names, "p2_bp_save_pct", stats2.getBreakPointSavePercentage() != null ? stats2.getBreakPointSavePercentage() : 0.6);
     }
 
     private void addRankingFeatures(List<Double> features, List<String> names, Integer rank1, Integer rank2) {
         if (rank1 != null && rank2 != null && rank1 > 0 && rank2 > 0) {
-            // Ranking difference (log scale for better distribution)
             double rankDiff = Math.log(rank2 + 1) - Math.log(rank1 + 1);
-            addFeature(features, names, "rank_diff_log", rankDiff);
-
-            // Ranking ratio
             double rankRatio = (double) rank2 / (rank1 + 1);
-            addFeature(features, names, "rank_ratio", rankRatio);
-
-            // Average ranking quality (inverse of geometric mean)
             double avgRankQuality = 2.0 / (Math.sqrt(rank1) + Math.sqrt(rank2));
+
+            addFeature(features, names, "rank_diff_log", rankDiff);
+            addFeature(features, names, "rank_ratio", rankRatio);
             addFeature(features, names, "avg_rank_quality", avgRankQuality);
         } else {
-            addFeature(features, names, "rank_diff_log", null);
-            addFeature(features, names, "rank_ratio", null);
-            addFeature(features, names, "avg_rank_quality", null);
+            addFeature(features, names, "rank_diff_log", 0.0);
+            addFeature(features, names, "rank_ratio", 1.0);
+            addFeature(features, names, "avg_rank_quality", 0.1);
         }
     }
 
     // Encoding helper methods
     private Double encodeSurface(String surface) {
-        if (surface == null || surface.isEmpty()) {
-            surface = "Hard"; // fallback till standardyta
-        }
-        Integer encoded = surfaceEncoding.getOrDefault(surface, 0); // 0 = Hard
-        return encoded.doubleValue();
+        if (surface == null || surface.isEmpty()) surface = "Hard";
+        return surfaceEncoding.getOrDefault(surface, 0).doubleValue();
     }
 
-    //Changed from original, assuming R hand if data not existing
     private Double encodeHand(String hand) {
-        Integer encoded = handEncoding.getOrDefault(hand, 0); // 0 = R
-        return encoded.doubleValue();
+        return handEncoding.getOrDefault(hand, 0).doubleValue();
     }
 
     private Double encodeTourneyLevel(String level) {
-        if (level == null || level.isEmpty()) {
-            level = "G"; // fallback till standardnivå (Grand Slam)
-        }
-        Integer encoded = tourneyLevelEncoding.getOrDefault(level, 0); // 0 = G
-        return encoded.doubleValue();
+        if (level == null || level.isEmpty()) level = "G";
+        return tourneyLevelEncoding.getOrDefault(level, 0).doubleValue();
     }
 
     private Double encodeRound(String round) {
-        if (round == null || round.isEmpty()) {
-            round = "R128"; // fallback till första rundan
-        }
-        Integer encoded = roundEncoding.getOrDefault(round, 0); // 0 = R128
-        return encoded.doubleValue();
+        if (round == null || round.isEmpty()) round = "R128";
+        return roundEncoding.getOrDefault(round, 0).doubleValue();
     }
 
     private Double encodeEntry(String entry) {
         Integer encoded = entryEncoding.get(entry != null ? entry : "");
-        return encoded != null ? encoded.doubleValue() : null;
+        return encoded != null ? encoded.doubleValue() : 4.0;
     }
 
     private Double safeDouble(Integer value) {
-        return value != null ? value.doubleValue() : null;
+        return value != null ? value.doubleValue() : 0.0;
     }
 }
