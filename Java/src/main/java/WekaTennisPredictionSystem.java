@@ -6,6 +6,12 @@ import java.util.*;
 public class WekaTennisPredictionSystem {
 
     public static void main(String[] args) {
+        System.setProperty("com.github.fommil.netlib.BLAS", "com.github.fommil.netlib.NativeSystemBLAS");
+        System.setProperty("com.github.fommil.netlib.LAPACK", "com.github.fommil.netlib.NativeSystemLAPACK");
+        System.load("C:\\OpenBLAS\\libopenblas.dll"); // full path to 64-bit DLL
+        org.netlib.blas.BLAS blas = org.netlib.blas.BLAS.getInstance();
+        System.out.println("Using BLAS implementation: " + blas.getClass().getName());
+
         System.out.println("Starting Weka Tennis Prediction System...");
 
         try {
@@ -13,20 +19,17 @@ public class WekaTennisPredictionSystem {
             TennisDataLoader loader = new TennisDataLoader();
             List<Match> allMatches = new ArrayList<>();
 
-            // Try to load data from resources or current directory
-            String[] dataFiles = {"merged2005_2024.csv", "atp_matches_2024.csv", "tennis_data.csv"};
+            String[] dataFiles = {"merged2005_2024.csv"};
             boolean dataLoaded = false;
 
             for (String fileName : dataFiles) {
                 try {
-                    // First try resources
                     URL resource = WekaTennisPredictionSystem.class.getClassLoader().getResource(fileName);
                     String filePath;
 
                     if (resource != null) {
                         filePath = new File(resource.getFile()).getAbsolutePath();
                     } else {
-                        // Try current directory
                         filePath = fileName;
                         if (!new File(filePath).exists()) {
                             continue;
@@ -37,7 +40,7 @@ public class WekaTennisPredictionSystem {
                     allMatches.addAll(yearMatches);
                     System.out.println("Loaded " + yearMatches.size() + " matches from " + fileName);
                     dataLoaded = true;
-                    break; // Use first available file
+                    break;
 
                 } catch (Exception e) {
                     System.out.println("Could not load " + fileName + ": " + e.getMessage());
@@ -45,18 +48,11 @@ public class WekaTennisPredictionSystem {
             }
 
             if (!dataLoaded || allMatches.isEmpty()) {
-                System.err.println("ERROR: No tennis data loaded! Please ensure you have a CSV file with tennis match data.");
-                System.err.println("Expected files: " + Arrays.toString(dataFiles));
-                createSampleData(allMatches); // Create sample data for demonstration
+                System.err.println("ERROR: No tennis data loaded! Using sample data.");
+                createSampleData(allMatches);
             }
 
-            // Sort chronologically
-            allMatches.sort((a, b) -> {
-                Integer dateA = a.getTourneyDate() != null ? a.getTourneyDate() : 20200101;
-                Integer dateB = b.getTourneyDate() != null ? b.getTourneyDate() : 20200101;
-                return dateA.compareTo(dateB);
-            });
-
+            allMatches.sort(Comparator.comparingInt(m -> m.getTourneyDate() != null ? m.getTourneyDate() : 20200101));
             System.out.printf("Total matches available: %d\n", allMatches.size());
 
             // 2. Split data chronologically
@@ -68,13 +64,14 @@ public class WekaTennisPredictionSystem {
             System.out.printf("Training on %d matches, testing on %d matches\n",
                     trainMatches.size(), testMatches.size());
 
-            // 3. Prepare feature extractor with player histories
+            // 3. Prepare feature extractor
             PlayerHistoryManager historyManager = new PlayerHistoryManager();
             FeatureExtractor featureExtractor = new FeatureExtractor(historyManager);
 
             // Build player histories from training data
             System.out.println("Building player histories...");
-            for (Match match : trainMatches) {
+            for (int i = 0; i < trainMatches.size(); i++) {
+                Match match = trainMatches.get(i);
                 try {
                     historyManager.updateWithMatch(match);
                 } catch (Exception e) {
@@ -82,17 +79,28 @@ public class WekaTennisPredictionSystem {
                 }
             }
 
+
             // 4. Train Weka model
             System.out.println("Training model...");
             WekaTennisTrainer trainer = new WekaTennisTrainer();
-            WekaTrainingResult result = trainer.trainModel(trainMatches, featureExtractor);
+            WekaTrainingResult result = trainer.trainModelWithProgress(trainMatches, featureExtractor);
 
-            //
+            // Save the model as .model
+            // Ensure resources folder exists
+            File resourcesFolder = new File("Java/src/main/resources");
+            if (!resourcesFolder.exists()) {
+                resourcesFolder.mkdirs();
+            }
+
+            // Save model in resources
+            String modelFilePath = new File(resourcesFolder, "tennis_rf.model").getAbsolutePath();
+            result.saveModel(modelFilePath);
+            System.out.println("Model saved to: " + modelFilePath);
 
             System.out.println("Training completed!");
             System.out.println("Training result: " + result);
 
-            // 5. Evaluate on test data (if available)
+            // 5. Evaluate on test data
             if (!testMatches.isEmpty()) {
                 System.out.println("\nBacktesting on recent matches...");
                 evaluateOnTestData(trainer, testMatches, historyManager);
@@ -111,13 +119,11 @@ public class WekaTennisPredictionSystem {
     private static void createSampleData(List<Match> matches) {
         System.out.println("Creating sample data for demonstration...");
 
-        // Create sample players
         Player djokovic = new Player("DJ01", "Novak Djokovic", "R", "SRB", 1, "", 188, 36.5, 1, 10000);
         Player nadal = new Player("RA01", "Rafael Nadal", "L", "ESP", 2, "", 185, 37.8, 2, 9500);
         Player federer = new Player("RF01", "Roger Federer", "R", "SUI", 3, "", 185, 42.0, 3, 9000);
         Player murray = new Player("AM01", "Andy Murray", "R", "GBR", 4, "", 190, 36.8, 4, 8500);
 
-        // Create sample matches
         for (int i = 0; i < 50; i++) {
             Player winner = (i % 2 == 0) ? djokovic : nadal;
             Player loser = (i % 2 == 0) ? nadal : djokovic;
@@ -225,4 +231,20 @@ public class WekaTennisPredictionSystem {
                 .loser(player2)
                 .build();
     }
+    public static void printProgressBar(int current, int total, long remainingMillis, String taskName) {
+        int barWidth = 50;
+        int progress = (int) (current * barWidth / (double) total);
+        StringBuilder bar = new StringBuilder("[");
+        for (int i = 0; i < barWidth; i++) {
+            bar.append(i < progress ? "=" : " ");
+        }
+        bar.append("] ");
+        bar.append(String.format("%.1f%%", current * 100.0 / total));
+        bar.append(" | ETA: ").append(remainingMillis / 1000).append("s");
+        bar.append(" | ").append(taskName);
+        System.out.print("\r" + bar);
+        if (current == total) System.out.println();
+    }
+
+
 }

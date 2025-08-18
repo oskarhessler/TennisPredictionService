@@ -37,6 +37,65 @@ public class WekaTennisTrainer {
             throw new RuntimeException("Training failed: " + e.getMessage(), e);
         }
     }
+    public WekaTrainingResult trainModelWithProgress(List<Match> trainMatches, FeatureExtractor featureExtractor) {
+        try {
+            // 1. Convert matches to Weka Instances
+            Instances trainingData = createWekaInstances(trainMatches, featureExtractor);
+            trainingData.setClassIndex(trainingData.numAttributes() - 1);
+            header = new Instances(trainingData, 0); // save header
+
+            // 2. Train RandomForest with progress
+            int numTrees = classifier.getNumIterations();
+            long startTime = System.currentTimeMillis();
+
+            for (int i = 0; i < numTrees; i++) {
+                // Build the forest so far
+                classifier.setNumIterations(i + 1);
+                classifier.buildClassifier(trainingData);
+
+                // Update progress bar for training
+                long elapsed = System.currentTimeMillis() - startTime;
+                double avgPerTree = elapsed / (double) (i + 1);
+                long remaining = (long) (avgPerTree * (numTrees - i - 1));
+                WekaTennisPredictionSystem.printProgressBar(i + 1, numTrees, remaining, "Training");
+            }
+
+            // 3. Evaluate with progress (10-fold CV)
+            int folds = 10;
+            Evaluation eval = new Evaluation(trainingData);
+            Random rand = new Random(42);
+            trainingData.randomize(rand);
+            if (trainingData.classAttribute().isNominal()) {
+                trainingData.stratify(folds);
+            }
+
+            startTime = System.currentTimeMillis();
+            for (int i = 0; i < folds; i++) {
+                Instances train = trainingData.trainCV(folds, i, rand);
+                Instances test = trainingData.testCV(folds, i);
+
+                RandomForest foldForest = new RandomForest();
+                foldForest.setOptions(classifier.getOptions());
+                foldForest.buildClassifier(train);
+
+                eval.evaluateModel(foldForest, test);
+
+                // Progress + ETA for evaluation
+                long elapsed = System.currentTimeMillis() - startTime;
+                double avgPerFold = elapsed / (double) (i + 1);
+                long remaining = (long) (avgPerFold * (folds - i - 1));
+                WekaTennisPredictionSystem.printProgressBar(i + 1, folds, remaining, "Evaluation");
+            }
+
+            return new WekaTrainingResult(classifier, eval);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Training failed: " + e.getMessage(), e);
+        }
+    }
+
+
+
 
     private Instances createWekaInstances(List<Match> matches, FeatureExtractor featureExtractor) {
         if (matches.isEmpty()) {

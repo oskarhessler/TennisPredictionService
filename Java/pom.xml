@@ -27,6 +27,11 @@
             <artifactId>commons-csv</artifactId>
             <version>1.10.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.fommil.netlib</groupId>
+            <artifactId>all</artifactId>
+            <version>1.1.2</version>
+        </dependency>
 
         <!-- Gson for JSON serialization -->
         <dependency>
