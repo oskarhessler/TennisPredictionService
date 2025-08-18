@@ -5,7 +5,7 @@ import weka.core.converters.ConverterUtils.DataSource;
 import java.util.*;
 
 public class WekaTennisTrainer {
-    private final RandomForest classifier;
+    private RandomForest classifier;
     private Instances header;
 
     public WekaTennisTrainer() {
@@ -13,6 +13,52 @@ public class WekaTennisTrainer {
         classifier.setNumIterations(100);
         classifier.setNumFeatures(0); // Use all features
         classifier.setMaxDepth(10);
+    }
+
+    // New constructor to use a pre-trained model
+    public WekaTennisTrainer(RandomForest preTrainedModel, Instances headerTemplate) {
+        this.classifier = preTrainedModel;
+        this.header = headerTemplate;
+    }
+
+    // Static method to create trainer from saved model and feature structure
+    public static WekaTennisTrainer fromPreTrainedModel(RandomForest model, List<Match> sampleMatches, FeatureExtractor featureExtractor) {
+        try {
+            // Create header from sample data
+            Instances header = createHeaderFromSamples(sampleMatches, featureExtractor);
+            return new WekaTennisTrainer(model, header);
+        } catch (Exception e) {
+            System.err.println("Failed to create trainer from pre-trained model: " + e.getMessage());
+            return new WekaTennisTrainer(); // fallback to empty trainer
+        }
+    }
+
+    private static Instances createHeaderFromSamples(List<Match> matches, FeatureExtractor featureExtractor) {
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("No sample matches provided");
+        }
+
+        // Get feature structure from first match
+        FeatureVector sampleFeatures = featureExtractor.extractFeatures(matches.get(0), true);
+        List<String> featureNames = sampleFeatures.getFeatureNames();
+
+        // Create Weka attributes
+        ArrayList<Attribute> attributes = new ArrayList<>();
+        for (String featureName : featureNames) {
+            attributes.add(new Attribute(featureName));
+        }
+
+        // Add class attribute
+        ArrayList<String> classValues = new ArrayList<>();
+        classValues.add("0");
+        classValues.add("1");
+        attributes.add(new Attribute("class", classValues));
+
+        // Create empty dataset with proper structure
+        Instances header = new Instances("tennis_matches", attributes, 0);
+        header.setClassIndex(header.numAttributes() - 1);
+
+        return header;
     }
 
     public WekaTrainingResult trainModel(List<Match> trainMatches, FeatureExtractor featureExtractor) {
@@ -37,6 +83,7 @@ public class WekaTennisTrainer {
             throw new RuntimeException("Training failed: " + e.getMessage(), e);
         }
     }
+
     public WekaTrainingResult trainModelWithProgress(List<Match> trainMatches, FeatureExtractor featureExtractor) {
         try {
             // 1. Convert matches to Weka Instances
@@ -93,9 +140,6 @@ public class WekaTennisTrainer {
             throw new RuntimeException("Training failed: " + e.getMessage(), e);
         }
     }
-
-
-
 
     private Instances createWekaInstances(List<Match> matches, FeatureExtractor featureExtractor) {
         if (matches.isEmpty()) {
@@ -186,6 +230,10 @@ public class WekaTennisTrainer {
             System.err.println("Prediction failed: " + e.getMessage());
             return 0.5; // default if prediction fails
         }
+    }
+
+    public boolean isModelTrained() {
+        return header != null && classifier != null;
     }
 
     public RandomForest getClassifier() {
