@@ -1,4 +1,5 @@
 import weka.classifiers.trees.RandomForest;
+import weka.core.Instances;
 import weka.core.SerializationHelper;
 import java.io.File;
 import java.util.*;
@@ -28,7 +29,7 @@ public class TennisPredictionApp {
 
             // Load historical data to build player histories
             System.out.println("Loading historical data for player profiles...");
-            loadHistoricalData(historyManager);
+            List<Match> matches = loadHistoricalData(historyManager);
 
             // 3. Create predictor with pre-trained model
             FeatureExtractor featureExtractor = new FeatureExtractor(historyManager);
@@ -53,7 +54,12 @@ public class TennisPredictionApp {
                 printPrediction(prediction);
             }
 
-            // 6. Interactive mode for custom predictions
+            // 6. Feature importance analysis
+            System.out.println("Analyzing feature importance...");
+            analyzeFeatureImportance(model, trainer.getHeader(), sampleMatches, featureExtractor);
+
+
+            // 7. Interactive mode for custom predictions
             runInteractiveMode(predictor);
 
         } catch (Exception e) {
@@ -62,12 +68,11 @@ public class TennisPredictionApp {
         }
     }
 
-    private static void loadHistoricalData(PlayerHistoryManager historyManager) {
+    private static List<Match> loadHistoricalData(PlayerHistoryManager historyManager) {
+        List<Match> matches = new ArrayList<>();
         try {
             TennisDataLoader loader = new TennisDataLoader();
-            List<Match> matches = new ArrayList<>();
-
-            String[] dataFiles = {"merged2005_2024.csv"};
+            String[] dataFiles = {"Java/src/main/resources/merged2005_2025.csv"};
 
             for (String fileName : dataFiles) {
                 try {
@@ -77,12 +82,11 @@ public class TennisPredictionApp {
                     break;
                 } catch (Exception e) {
                     System.out.println("Could not load " + fileName + ", using sample data");
-                    createSampleHistoricalData(matches);
+                    //createSampleHistoricalData(matches);
                     break;
                 }
             }
 
-            // Build player histories
             matches.sort(Comparator.comparingInt(m -> m.getTourneyDate() != null ? m.getTourneyDate() : 20200101));
             for (Match match : matches) {
                 historyManager.updateWithMatch(match);
@@ -93,7 +97,9 @@ public class TennisPredictionApp {
         } catch (Exception e) {
             System.err.println("Error loading historical data: " + e.getMessage());
         }
+        return matches;
     }
+
 
     private static List<Match> createSampleMatches() {
         List<Match> matches = new ArrayList<>();
@@ -156,31 +162,61 @@ public class TennisPredictionApp {
     private static List<UpcomingMatch> createSampleUpcomingMatches() {
         List<UpcomingMatch> matches = new ArrayList<>();
 
-        // Define some current top players
-        Player djokovic = new Player("104925", "Novak Djokovic", "R", "SRB", 1, "", 188, 36.5, 1, 10000);
-        Player alcaraz = new Player("207989", "Carlos Alcaraz", "R", "ESP", 2, "", 183, 21.0, 2, 9500);
-        Player sinner = new Player("207733", "Jannik Sinner", "R", "ITA", 3, "", 188, 23.0, 3, 8500);
-        Player medvedev = new Player("206173", "Daniil Medvedev", "R", "RUS", 4, "", 198, 28.5, 4, 8000);
-        Player zverev = new Player("106421", "Alexander Zverev", "R", "GER", 5, "", 198, 27.0, 5, 7500);
+        // Players from Canada Masters 2025
+        Player rublev = new Player("RE44", "Andrey Rublev", "R", "RUS", 11, "", 188, 27.77, 11, 3110);
+        Player sonego = new Player("SU87", "Lorenzo Sonego", "R", "ITA", 38, "", 191, 30.21, 38, 1281);
+        Player tiafoe = new Player("TD51", "Frances Tiafoe", "R", "USA", 12, "", 188, 27.52, 12, 2990);
+        Player vukic = new Player("V832", "Aleksandar Vukic", "R", "AUS", 99, "", 188, 29.31, 99, 639);
+        Player fFokina = new Player("DH50", "Alejandro Davidovich Fokina", "R", "ESP", 19, "", 180, 26.14, 19, 2225);
+        Player mensik = new Player("M0NI", "Jakub Mensik", "R", "CZE", 18, "", 196, 19.9, 18, 2362);
+        Player cobolli = new Player("C0E9", "Flavio Cobolli", "R", "ITA", 17, "", 183, 23.23, 17, 2385);
+        Player michelsen = new Player("M0QL", "Alex Michelsen", "R", "USA", 34, "", 193, 20.92, 34, 1555);
+        Player zverev = new Player("Z355", "Alexander Zverev", "R", "DEU", 3, "", 198, 28.27, 3, 6030);
+        Player khachanov = new Player("KE29", "Karen Khachanov", "R", "RUS", 16, "", 198, 29.18, 16, 2590);
+        Player shelton = new Player("S0S1", "Ben Shelton", "L", "USA", 7, "", 193, 22.8, 7, 3520);
+        Player fritz = new Player("FB98", "Taylor Fritz", "R", "USA", 4, "", 196, 27.75, 4, 5135);
+        Player deMinaur = new Player("DH58", "Alex de Minaur", "R", "AUS", 8, "", 183, 26.44, 8, 3335);
 
-        // Create various match scenarios
-        matches.add(new UpcomingMatch(djokovic, alcaraz,
-                new MatchContext("Hard", "G", 20250201, "F", 5))); // Australian Open Final
+        // -------------------------------
+        // Obvious advantage matches (~70-90%)
+        // -------------------------------
+        matches.add(new UpcomingMatch(rublev, sonego,
+                new MatchContext("Hard", "M", 20250727, "R32", 3))); // Rublev ~85% favorite
 
-        matches.add(new UpcomingMatch(sinner, medvedev,
-                new MatchContext("Hard", "M", 20250315, "SF", 3))); // Masters Semi
+        matches.add(new UpcomingMatch(fFokina, mensik,
+                new MatchContext("Hard", "M", 20250727, "R32", 3))); // Fokina ~91% favorite
 
-        matches.add(new UpcomingMatch(alcaraz, zverev,
-                new MatchContext("Clay", "G", 20250601, "QF", 5))); // French Open Quarter
+        matches.add(new UpcomingMatch(tiafoe, vukic,
+                new MatchContext("Hard", "M", 20250727, "R32", 3))); // Vukic upset? ~52% Vukic, 48% Tiafoe
 
-        matches.add(new UpcomingMatch(djokovic, sinner,
-                new MatchContext("Grass", "G", 20250701, "F", 5))); // Wimbledon Final
+        matches.add(new UpcomingMatch(zverev, khachanov,
+                new MatchContext("Hard", "M", 20250727, "R32", 3))); // Zverev ~70% favorite
 
-        matches.add(new UpcomingMatch(medvedev, zverev,
-                new MatchContext("Hard", "G", 20250901, "SF", 5))); // US Open Semi
+        matches.add(new UpcomingMatch(shelton, fritz,
+                new MatchContext("Hard", "M", 20250727, "R16", 3))); // Shelton ~56% favorite
+
+        // -------------------------------
+        // Close games (~50-55%)
+        // -------------------------------
+        matches.add(new UpcomingMatch(cobolli, michelsen,
+                new MatchContext("Hard", "M", 20250727, "R32", 3))); // Cobolli ~55% favorite
+
+        matches.add(new UpcomingMatch(deMinaur, tiafoe,
+                new MatchContext("Hard", "M", 20250727, "R16", 3))); // de Minaur ~55% favorite
+
+        matches.add(new UpcomingMatch(zverev, shelton,
+                new MatchContext("Hard", "M", 20250727, "QF", 3))); // Zverev ~56% favorite
+
+        matches.add(new UpcomingMatch(khachanov, michelsen,
+                new MatchContext("Hard", "M", 20250727, "QF", 3))); // Khachanov ~50% (even game)
+
+        matches.add(new UpcomingMatch(shelton, khachanov,
+                new MatchContext("Hard", "M", 20250727, "F", 3))); // Shelton ~59% favorite
 
         return matches;
     }
+
+
 
     private static void printPrediction(MatchPrediction prediction) {
         Player p1 = prediction.getPlayer1();
@@ -274,4 +310,93 @@ public class TennisPredictionApp {
         scanner.close();
         System.out.println("Goodbye!");
     }
+
+    private static void analyzeFeatureImportance(RandomForest model, Instances header,
+                                                 List<Match> sampleMatches, FeatureExtractor featureExtractor) {
+        try {
+            // Method 1: Simple heuristic-based importance (faster)
+            System.out.println("\nCalculating feature importance (heuristic method)...");
+            List<FeatureImportanceAnalyzer.FeatureImportance> simpleImportances =
+                    FeatureImportanceAnalyzer.calculateSimpleImportance(model, header);
+            FeatureImportanceAnalyzer.printFeatureImportance(simpleImportances, 15);
+
+            // Method 2: Permutation importance (more accurate but slower)
+            // Uncomment if you want more accurate but slower analysis
+            /*
+            System.out.println("\nCalculating permutation-based feature importance...");
+            Instances testData = createTestInstances(sampleMatches, featureExtractor);
+            List<FeatureImportanceAnalyzer.FeatureImportance> permutationImportances =
+                FeatureImportanceAnalyzer.calculatePermutationImportance(model, testData, 5);
+            FeatureImportanceAnalyzer.printFeatureImportance(permutationImportances, 15);
+            */
+
+        } catch (Exception e) {
+            System.err.println("Error analyzing feature importance: " + e.getMessage());
+        }
+    }
+
+    private static Instances createTestInstances(List<Match> matches, FeatureExtractor featureExtractor) {
+        // Create a small test dataset for permutation importance
+        // This is a simplified version - you might want to use actual validation data
+        return null; // Placeholder - implement if needed
+    }
+    private static void evaluateModel(RandomForest model, FeatureExtractor featureExtractor,
+                                      PlayerHistoryManager historyManager, List<Match> matches) {
+        try {
+            // Filter test set (example: only 2024 matches)
+            List<Match> testMatches = new ArrayList<>();
+            for (Match m : matches) {
+                if (m.getTourneyDate() != null && m.getTourneyDate() / 10000 == 2024) {
+                    testMatches.add(m);
+                }
+            }
+
+            if (testMatches.isEmpty()) {
+                System.out.println("No matches found for evaluation!");
+                return;
+            }
+
+            int correct = 0;
+            int total = 0;
+            double logloss = 0.0;
+
+            WekaTennisTrainer trainer = WekaTennisTrainer.fromPreTrainedModel(model, testMatches, featureExtractor);
+            WekaTennisPredictor predictor = new WekaTennisPredictor(trainer, featureExtractor, historyManager);
+
+            for (Match m : testMatches) {
+                MatchContext context = new MatchContext(
+                        m.getSurface(), m.getTourneyLevel(), m.getTourneyDate(),
+                        m.getRound(), m.getBestOf()
+                );
+
+                MatchPrediction prediction = predictor.predictMatch(m.getWinner(), m.getLoser(), context);
+
+                double probWinner = prediction.getPlayer1().equals(m.getWinner())
+                        ? prediction.getPlayer1WinProbability()
+                        : prediction.getPlayer2WinProbability();
+
+                // Accuracy
+                if (probWinner >= 0.5) {
+                    correct++;
+                }
+                total++;
+
+                // Logloss
+                logloss += -Math.log(Math.max(probWinner, 1e-15));
+            }
+
+            double accuracy = (double) correct / total;
+            double avgLogloss = logloss / total;
+
+            System.out.println("\n=== MODEL EVALUATION (2024) ===");
+            System.out.printf("Matches evaluated: %d%n", total);
+            System.out.printf("Accuracy: %.2f%%%n", accuracy * 100);
+            System.out.printf("Logloss: %.4f%n", avgLogloss);
+
+        } catch (Exception e) {
+            System.err.println("Error during evaluation: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 }

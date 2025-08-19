@@ -6,11 +6,10 @@ import java.util.*;
 public class WekaTennisPredictionSystem {
 
     public static void main(String[] args) {
-        System.setProperty("com.github.fommil.netlib.BLAS", "com.github.fommil.netlib.NativeSystemBLAS");
-        System.setProperty("com.github.fommil.netlib.LAPACK", "com.github.fommil.netlib.NativeSystemLAPACK");
-        System.load("C:\\OpenBLAS\\libopenblas.dll"); // full path to 64-bit DLL
-        org.netlib.blas.BLAS blas = org.netlib.blas.BLAS.getInstance();
-        System.out.println("Using BLAS implementation: " + blas.getClass().getName());
+
+        System.setProperty("java.library.path",
+                System.getProperty("java.library.path") +
+                        ";C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\latest\\bin");
 
         System.out.println("Starting Weka Tennis Prediction System...");
 
@@ -19,7 +18,7 @@ public class WekaTennisPredictionSystem {
             TennisDataLoader loader = new TennisDataLoader();
             List<Match> allMatches = new ArrayList<>();
 
-            String[] dataFiles = {"merged2005_2024.csv"};
+            String[] dataFiles = {"merged2005_2025.csv"};
             boolean dataLoaded = false;
 
             for (String fileName : dataFiles) {

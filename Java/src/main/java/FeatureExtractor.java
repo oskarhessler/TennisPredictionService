@@ -197,7 +197,7 @@ public class FeatureExtractor {
 
     private void addRankingFeatures(List<Double> features, List<String> names, Integer rank1, Integer rank2) {
         if (rank1 != null && rank2 != null && rank1 > 0 && rank2 > 0) {
-            double rankDiff = Math.log(rank2 + 1) - Math.log(rank1 + 1);
+            double rankDiff = Math.log(rank1 + 1) - Math.log(rank2 + 1);
             double rankRatio = (double) rank2 / (rank1 + 1);
             double avgRankQuality = 2.0 / (Math.sqrt(rank1) + Math.sqrt(rank2));
 
