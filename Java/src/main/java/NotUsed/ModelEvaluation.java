@@ -1,4 +1,6 @@
-public class ModelEvaluation {
+package NotUsed;
+
+public class ModelEvaluation{
     private final double accuracy;
     private final double logLoss;
     private final float[][] predictions;
